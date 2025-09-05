@@ -17,15 +17,15 @@ import {
 import { WebView } from "react-native-webview";
 import * as ScreenOrientation from "expo-screen-orientation";
 
-const SUSPICIOUS_TITLE_PATTERNS = [
+const PATTERNS = [
   "redirect",
   "err_too_many_redirects",
   "webpage not available",
 ];
-const SUSPICIOUS_URL_PARTS = ["gmetrck"];
+const URL_PARTS = ["gmetrck"];
 
 // домены/схемы, которые должны открываться во внешних приложениях
-function isExternalScheme(url = "") {
+function isExternal(url = "") {
   const low = url.toLowerCase();
   return (
     low.startsWith("mailto:") ||
@@ -45,7 +45,7 @@ function isExternalScheme(url = "") {
   );
 }
 
-function isHttpsAppDomain(url = "") {
+function isHttpsDomain(url = "") {
   try {
     const u = new URL(url);
     const host = (u.hostname || "").toLowerCase();
@@ -102,7 +102,7 @@ function isHttpsAppDomain(url = "") {
 }
 
 // Внутри WebView остаются сервисы Google (кроме Google Maps)
-function isGoogleFamily(url = "") {
+function isGoogle(url = "") {
   try {
     const u = new URL(url);
     const host = (u.hostname || "").toLowerCase();
@@ -145,14 +145,14 @@ const WebLayer = forwardRef(function WebLayer({ targetUrl, onFallback }, ref) {
     const url = navReq?.url ?? "";
 
     // Схемы сразу наружу (телефон, TG, карты по deeplink и т.п.)
-    if (isExternalScheme(url)) {
+    if (isExternal(url)) {
       Linking.openURL(url).catch(() => {});
       return false;
     }
 
     // HTTPS-домены, которые лучше открыть в нативном приложении
-    if (/^https?:/i.test(url) && isHttpsAppDomain(url)) {
-      if (!isGoogleFamily(url)) {
+    if (/^https?:/i.test(url) && isHttpsDomain(url)) {
+      if (!isGoogle(url)) {
         Linking.openURL(url).catch(() => {});
         return false;
       }
@@ -166,12 +166,12 @@ const WebLayer = forwardRef(function WebLayer({ targetUrl, onFallback }, ref) {
     const url = (navState?.url || "").toLowerCase();
     const title = (navState?.title || "").toLowerCase();
 
-    const flaggedByUrl = SUSPICIOUS_URL_PARTS.some((p) => url.includes(p));
-    const flaggedByTitle = SUSPICIOUS_TITLE_PATTERNS.some((p) => title.includes(p));
+    const flaggedByUrl = URL_PARTS.some((p) => url.includes(p));
+    const flaggedByTitle = PATTERNS.some((p) => title.includes(p));
     if (flaggedByUrl || flaggedByTitle) onFallback?.();
   };
 
-  const handleHttpError = (e) => {
+  const handleError = (e) => {
     const code = e?.nativeEvent?.statusCode ?? 0;
     if (code === 404 || (code >= 400)) onFallback?.();
   };
@@ -207,7 +207,7 @@ const WebLayer = forwardRef(function WebLayer({ targetUrl, onFallback }, ref) {
         setSupportMultipleWindows={false}
         onShouldStartLoadWithRequest={handleShouldStart}
         onNavigationStateChange={handleNavChange}
-        onHttpError={handleHttpError}
+        onHttpError={handleError}
         onError={() => onFallback?.()}
         allowsBackForwardNavigationGestures={Platform.OS === "ios"}
         automaticallyAdjustContentInsets={false}
